@@ -1,0 +1,81 @@
+---
+title: "landsat_fuego"
+author: "Pamela Pairo"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load spatial packages
+library(sp)
+library(rgdal)
+library(raster)
+library(ggplot2)
+library(viridis)
+library(rasterVis)
+library(gdalUtils)
+library (sf)
+library (tidyverse)
+library(ows4R)
+library(httr)
+library(tmap)
+library (grid)
+
+```
+
+
+Descarga de las imagenes sentinel 2 desde la página de [Copernicus](https://scihub.copernicus.eu/dhus/#/home). Descargue la imagen del 21/3/2021 de la región de la Comarca Andina.
+
+Primero descargamos de la página de la IGN, los departamentos que abarcan la Comarca Andina (Bariloche y Ñorquinco)
+
+```{r}
+
+wfs_departamentos <-"http://wms.ign.gob.ar/geoserver/wfs"
+url <- parse_url(wfs_departamentos)
+url$query <- list(service = "wfs",
+                  version = "2.0.0",
+                  typename = "ign:departamento",
+                  request = "GetFeature",
+                  outputFormat = "application/json")
+request <- build_url(url)
+departamentos <- st_read(request)
+
+comarca <- departamentos%>%filter (nam == "Ñorquinco"|nam =="Bariloche" )
+
+qtm(comarca)
+
+```
+
+Luego cargamos las bandas de Sentinel que estan en formato .jp2 y los transformamos a .rif para trabajar con el paquete RASTER.
+
+```{r}
+bandas <- list.files("./R20m/", ".jp2", full.names = TRUE)
+
+bandas[9]# banda 12
+gdal_translate(bandas[9], "./R20m/B12.tif")
+
+bandas[10]# banda 12
+gdal_translate(bandas[10], "./R20m/B08.tif")
+```
+
+Cargamos los archivos .tif y calculamos los indices NBR y BAIS 2
+
+```{r}
+
+b12 <- raster("./R20M/B12.tif")
+b8 <- raster("./R20M/B08.tif")
+
+incendio<- stack (b12, b8)
+
+incendio
+
+nbr<- (incendio$B08-incendio$B12)/(incendio$B08+incendio$B12)
+plot(nbr)
+nbr
+
+bais2 <-((1-(sqrt((b06*b07*b8)/b04)))*((b12-b8)/(sqrt(b12+b8))+1))
+
+bais2
+```
+
